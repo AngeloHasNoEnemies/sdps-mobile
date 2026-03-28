@@ -76,17 +76,19 @@ export default function SensorDataScreen({ route }) {
       </View>
 
       {/* Filters */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.filterRow}>
-        {FILTERS.map(f => (
-          <TouchableOpacity
-            key={f}
-            style={[s.filterChip, activeFilter === f && s.filterChipActive]}
-            onPress={() => setActiveFilter(f)}
-          >
-            <Text style={[s.filterText, activeFilter === f && s.filterTextActive]}>{f}</Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
+      <View style={s.filterWrapper}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.filterRow}>
+          {FILTERS.map(f => (
+            <TouchableOpacity
+              key={f}
+              style={[s.filterChip, activeFilter === f && s.filterChipActive]}
+              onPress={() => setActiveFilter(f)}
+            >
+              <Text style={[s.filterText, activeFilter === f && s.filterTextActive]}>{f}</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </View>
 
       {/* Sensor List */}
       <FlatList
@@ -191,7 +193,13 @@ const s = StyleSheet.create({
   },
   summaryVal:  { fontSize: 16, fontWeight: '800', marginTop: 3 },
   summaryLbl:  { fontSize: 9, fontWeight: '700', color: COLORS.textMuted, letterSpacing: 0.5, marginTop: 2 },
-  filterRow:   { paddingHorizontal: 16, paddingVertical: 10 },
+  filterWrapper: {
+    height: 50,
+    backgroundColor: COLORS.bgCard,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  filterRow:   { paddingHorizontal: 16, paddingVertical: 10, alignItems: 'center' },
   filterChip: {
     paddingHorizontal: 14, paddingVertical: 6, marginRight: 8,
     borderRadius: RADIUS.full, backgroundColor: COLORS.bgCard,
