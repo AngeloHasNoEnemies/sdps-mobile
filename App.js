@@ -10,6 +10,7 @@ import LoginScreen      from './screens/LoginScreen';
 import DashboardScreen  from './screens/DashboardScreen';
 import AlertsScreen     from './screens/AlertsScreen';
 import SensorDataScreen from './screens/SensorDataScreen';
+import SettingsScreen   from './screens/SettingsScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab   = createBottomTabNavigator();
@@ -45,6 +46,7 @@ function MainTabs() {
             Dashboard:  focused ? 'grid'          : 'grid-outline',
             Alerts:     focused ? 'notifications' : 'notifications-outline',
             SensorData: focused ? 'hardware-chip' : 'hardware-chip-outline',
+            Settings:   focused ? 'settings'      : 'settings-outline',
           };
           return <Ionicons name={icons[route.name]} size={size} color={color} />;
         },
@@ -64,6 +66,7 @@ function MainTabs() {
         component={SensorDataScreen}
         options={{ tabBarLabel: 'Sensors' }}
       />
+      <Tab.Screen name="Settings"   component={SettingsScreen} />
     </Tab.Navigator>
   );
 }
