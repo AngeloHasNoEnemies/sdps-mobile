@@ -1,10 +1,13 @@
+// App.js — SDPS Mobile
+// Tasks 5-8: API-connected navigation with auth flow
+
 import 'react-native-gesture-handler';
 import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS, SENSORS, getLevel } from './theme';
+import { COLORS } from './theme';
 
 import LoginScreen      from './screens/LoginScreen';
 import DashboardScreen  from './screens/DashboardScreen';
@@ -15,17 +18,7 @@ import SettingsScreen   from './screens/SettingsScreen';
 const Stack = createNativeStackNavigator();
 const Tab   = createBottomTabNavigator();
 
-function getAlertCount() {
-  let n = 0;
-  SENSORS.forEach(s => {
-    if (getLevel(s.waterLevel, s.waterWarningThreshold, s.waterCriticalThreshold) !== 'normal') n++;
-    if (getLevel(s.wasteLevel, s.wasteWarningThreshold, s.wasteCriticalThreshold) !== 'normal') n++;
-  });
-  return n;
-}
-
 function MainTabs() {
-  const alertCount = getAlertCount();
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -50,13 +43,6 @@ function MainTabs() {
           };
           return <Ionicons name={icons[route.name]} size={size} color={color} />;
         },
-        tabBarBadge: route.name === 'Alerts' && alertCount > 0 ? alertCount : undefined,
-        tabBarBadgeStyle: {
-          backgroundColor: COLORS.critical,
-          fontSize: 9,
-          minWidth: 16,
-          height: 16,
-        },
       })}
     >
       <Tab.Screen name="Dashboard"  component={DashboardScreen} />
@@ -66,7 +52,7 @@ function MainTabs() {
         component={SensorDataScreen}
         options={{ tabBarLabel: 'Sensors' }}
       />
-      <Tab.Screen name="Settings"   component={SettingsScreen} />
+      <Tab.Screen name="Settings" component={SettingsScreen} />
     </Tab.Navigator>
   );
 }
