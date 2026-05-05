@@ -5,7 +5,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // ⚠️ Replace with your computer's local IP when testing on device/emulator
 // Run `ipconfig` (Windows) or `ifconfig` (Mac/Linux) to find your IP
-const BASE_URL = 'http://192.168.100.165:8000/api';
+const BASE_URL = 'http://192.168.1.54:8000/api';
 
 const getToken = async () => await AsyncStorage.getItem('token');
 

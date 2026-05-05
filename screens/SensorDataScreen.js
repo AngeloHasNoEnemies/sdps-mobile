@@ -165,7 +165,7 @@ export default function SensorDataScreen({ navigation, route }) {
       </View>
 
       {/* Filters */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.filterRow}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.filterRow} style={s.filterScrollView}>
         {FILTERS.map(f => (
           <TouchableOpacity
             key={f}
@@ -270,6 +270,7 @@ const s = StyleSheet.create({
   summaryItem: { flex: 1, backgroundColor: COLORS.bg, borderRadius: RADIUS.sm, borderWidth: 1, borderColor: COLORS.border, borderLeftWidth: 3, padding: 10, alignItems: 'center', marginHorizontal: 3 },
   summaryVal:  { fontSize: 16, fontWeight: '800', marginTop: 3 },
   summaryLbl:  { fontSize: 9, fontWeight: '700', color: COLORS.textMuted, letterSpacing: 0.5, marginTop: 2 },
+  filterScrollView: { flexGrow: 0, flexShrink: 0 },
   filterRow:   { paddingHorizontal: 16, paddingVertical: 10 },
   filterChip:  { paddingHorizontal: 14, paddingVertical: 6, marginRight: 8, borderRadius: RADIUS.full, backgroundColor: COLORS.bgCard, borderWidth: 1, borderColor: COLORS.border },
   filterChipActive: { backgroundColor: COLORS.primaryLight, borderColor: COLORS.primary },

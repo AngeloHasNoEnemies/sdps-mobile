@@ -277,7 +277,7 @@ export default function AlertsScreen({ navigation }) {
       ) : (
         <>
           {/* Filters */}
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.filterRow}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.filterRow} style={s.filterScrollView}>
             {FILTERS.map(f => (
               <TouchableOpacity
                 key={f}
@@ -401,8 +401,9 @@ const s = StyleSheet.create({
   headerBadgeText: { fontSize: 10, fontWeight: '800' },
   createBtn:    { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.primary, borderRadius: RADIUS.md, paddingHorizontal: 12, paddingVertical: 6 },
   createBtnText:{ fontSize: 12, fontWeight: '700', color: '#fff', marginLeft: 4 },
-  filterRow:    { paddingHorizontal: 16, paddingVertical: 12 },
-  filterChip:   { paddingHorizontal: 14, paddingVertical: 6, marginRight: 8, borderRadius: RADIUS.full, backgroundColor: COLORS.bgCard, borderWidth: 1, borderColor: COLORS.border },
+  filterScrollView: { flexGrow: 0, flexShrink: 0},
+  filterRow:    { paddingHorizontal: 16, paddingVertical: 10, alignItems: 'center'},
+  filterChip:   { paddingHorizontal: 14, paddingVertical: 6, marginRight: 8, borderRadius: RADIUS.full, backgroundColor: COLORS.bgCard, borderWidth: 1, borderColor: COLORS.border},
   filterChipActive:  { backgroundColor: COLORS.primaryLight, borderColor: COLORS.primary },
   filterText:        { fontSize: 12, fontWeight: '600', color: COLORS.textSecondary },
   filterTextActive:  { color: COLORS.primary },
@@ -427,7 +428,6 @@ const s = StyleSheet.create({
   retryBtn:     { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.primary, borderRadius: RADIUS.md, paddingHorizontal: 20, paddingVertical: 10, marginTop: 18 },
   retryText:    { fontSize: 14, fontWeight: '700', color: '#fff', marginLeft: 6 },
   emptyFilter:  { textAlign: 'center', color: COLORS.textMuted, marginTop: 40, fontSize: 14 },
-  // Modal
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   modalCard:    { backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, maxHeight: '90%' },
   modalHeader:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
