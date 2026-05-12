@@ -3,22 +3,23 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import {
-  View, Text, ScrollView, StyleSheet, TouchableOpacity,
-  FlatList, ActivityIndicator, Alert, TextInput, Modal,
+  View, Text, StyleSheet, TouchableOpacity,
+  FlatList, ActivityIndicator, Alert, TextInput, Modal, ScrollView
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useFocusEffect } from '@react-navigation/native';
 import { COLORS, RADIUS } from '../theme';
 import { apiGet, apiPost, apiDelete } from '../services/api';
 
 const FILTERS = ['All', 'Critical', 'High', 'Medium', 'Low'];
 
 const ALERT_TYPES = [
-  { label: 'Flood',       value: 'flood'       },
-  { label: 'Blockage',    value: 'blockage'     },
-  { label: 'Sensor Fault',value: 'sensor_fault' },
-  { label: 'Maintenance', value: 'maintenance'  },
+  { label: 'Flood',        value: 'flood'        },
+  { label: 'Blockage',     value: 'blockage'     },
+  { label: 'Sensor Fault', value: 'sensor_fault' },
+  { label: 'Maintenance',  value: 'maintenance'  },
 ];
 
 const SEVERITIES = [
@@ -28,6 +29,25 @@ const SEVERITIES = [
   { label: 'Critical', value: 'critical' },
 ];
 
+const severityColor = (sev) => {
+  if (sev === 'critical') return COLORS.critical;
+  if (sev === 'high')     return '#f97316';
+  if (sev === 'medium')   return COLORS.warning;
+  return COLORS.normal;
+};
+const severityBg = (sev) => {
+  if (sev === 'critical') return COLORS.criticalBg;
+  if (sev === 'high')     return '#ffedd5';
+  if (sev === 'medium')   return COLORS.warningBg;
+  return COLORS.normalBg;
+};
+const severityBdr = (sev) => {
+  if (sev === 'critical') return COLORS.criticalBdr;
+  if (sev === 'high')     return '#fdba74';
+  if (sev === 'medium')   return COLORS.warningBdr;
+  return COLORS.normalBdr;
+};
+
 export default function AlertsScreen({ navigation }) {
   const [alerts,        setAlerts]        = useState([]);
   const [loading,       setLoading]       = useState(true);
@@ -36,18 +56,20 @@ export default function AlertsScreen({ navigation }) {
   const [showModal,     setShowModal]     = useState(false);
   const [creating,      setCreating]      = useState(false);
 
-  // Create Alert form state — matches exact API fields from OPTIONS response
   const [newMessage,    setNewMessage]    = useState('');
   const [newLocationId, setNewLocationId] = useState('');
   const [newAlertType,  setNewAlertType]  = useState('flood');
   const [newSeverity,   setNewSeverity]   = useState('medium');
 
-  // Task 7: READ — fetch alerts from API
+  // Re-fetch every time this screen comes into focus so data stays fresh
   const fetchAlerts = useCallback(async () => {
     setError(null);
     try {
       const data = await apiGet('/alerts/');
-      setAlerts(Array.isArray(data) ? data : (data.results || []));
+      const list = Array.isArray(data) ? data : (data.results || []);
+      // Sort by newest first so latest backend data appears at the top
+      list.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+      setAlerts(list);
     } catch (err) {
       setError(err.message || 'Failed to load');
     } finally {
@@ -55,9 +77,14 @@ export default function AlertsScreen({ navigation }) {
     }
   }, []);
 
-  useEffect(() => { fetchAlerts(); }, [fetchAlerts]);
+  // useFocusEffect ensures data refreshes every time you navigate to this tab
+  useFocusEffect(
+    useCallback(() => {
+      setLoading(true);
+      fetchAlerts();
+    }, [fetchAlerts])
+  );
 
-  // Task 7: CREATE — POST /api/alerts/ with correct fields
   const handleCreate = async () => {
     if (!newMessage.trim()) {
       Alert.alert('Validation Error', 'Please enter a message.');
@@ -77,25 +104,25 @@ export default function AlertsScreen({ navigation }) {
     try {
       await apiPost('/alerts/', {
         message:    newMessage.trim(),
-        location:   locId,       // integer ID — required
-        alert_type: newAlertType, // "flood" | "blockage" | "sensor_fault" | "maintenance"
-        severity:   newSeverity,  // "low" | "medium" | "high" | "critical"
+        location:   locId,
+        alert_type: newAlertType,
+        severity:   newSeverity,
       });
       setShowModal(false);
       setNewMessage('');
       setNewLocationId('');
       setNewAlertType('flood');
       setNewSeverity('medium');
+      // Refresh list so newly created alert appears immediately
       fetchAlerts();
-      Alert.alert('Success', 'Alert created successfully (201 Created).');
+      Alert.alert('Success', 'Alert created successfully.');
     } catch (err) {
       Alert.alert('Error', `Failed to create alert: ${err.message}`);
     } finally {
       setCreating(false);
     }
   };
-
-  // Task 7: DELETE — DELETE /api/alerts/{id}/
+  
   const handleDelete = (alertId) => {
     Alert.alert(
       'Delete Alert',
@@ -122,7 +149,6 @@ export default function AlertsScreen({ navigation }) {
     navigation.replace('Login');
   };
 
-  // Task 8: Loading state
   if (loading) return (
     <SafeAreaView style={s.safe} edges={['top']}>
       <View style={s.header}>
@@ -135,7 +161,6 @@ export default function AlertsScreen({ navigation }) {
     </SafeAreaView>
   );
 
-  // Task 8: Error & Unauthorized
   if (error) return (
     <SafeAreaView style={s.safe} edges={['top']}>
       <View style={s.header}>
@@ -169,27 +194,10 @@ export default function AlertsScreen({ navigation }) {
     </SafeAreaView>
   );
 
-  const severityColor = (sev) => {
-    if (sev === 'critical') return COLORS.critical;
-    if (sev === 'high')     return '#f97316';
-    if (sev === 'medium')   return COLORS.warning;
-    return COLORS.normal;
-  };
-  const severityBg = (sev) => {
-    if (sev === 'critical') return COLORS.criticalBg;
-    if (sev === 'high')     return '#ffedd5';
-    if (sev === 'medium')   return COLORS.warningBg;
-    return COLORS.normalBg;
-  };
-  const severityBdr = (sev) => {
-    if (sev === 'critical') return COLORS.criticalBdr;
-    if (sev === 'high')     return '#fdba74';
-    if (sev === 'medium')   return COLORS.warningBdr;
-    return COLORS.normalBdr;
-  };
-
   const criticalCount = alerts.filter(a => a.severity === 'critical').length;
   const highCount     = alerts.filter(a => a.severity === 'high').length;
+  const mediumCount   = alerts.filter(a => a.severity === 'medium').length;
+  const lowCount      = alerts.filter(a => a.severity === 'low').length;
 
   const filtered = alerts.filter(a => {
     if (activeFilter === 'All')      return true;
@@ -210,15 +218,16 @@ export default function AlertsScreen({ navigation }) {
       <View style={[s.alertCard, { backgroundColor: bg, borderColor: border }]}>
         <View style={[s.accentBar, { backgroundColor: color }]} />
         <View style={s.alertBody}>
-          {/* Top row */}
           <View style={s.alertTopRow}>
-            <View style={[s.alertIconWrap, { backgroundColor: color + '18' }]}>
+            <View style={[s.alertIconWrap, { backgroundColor: color + '22' }]}>
               <Ionicons name="notifications" size={14} color={color} />
             </View>
-            <View style={{ flex: 1, marginLeft: 10 }}>
-              <Text style={s.alertSensor}>{alert.location_name || `Location #${alert.location}`}</Text>
-              <Text style={s.alertLoc}>
-                {alert.alert_type?.replace('_', ' ').toUpperCase()} · ID: {alert.id}
+            <View style={s.alertMeta}>
+              <Text style={s.alertSensor} numberOfLines={1}>
+                {alert.location_name || `Location #${alert.location}`}
+              </Text>
+              <Text style={s.alertLoc} numberOfLines={1}>
+                {alert.alert_type?.replace(/_/g, ' ').toUpperCase()} · ID: {alert.id}
               </Text>
             </View>
             <View style={[s.levelBadge, { backgroundColor: bg, borderColor: border }]}>
@@ -226,18 +235,15 @@ export default function AlertsScreen({ navigation }) {
             </View>
           </View>
 
-          {/* Message */}
-          <Text style={[s.alertMessage, { color }]}>
+          <Text style={[s.alertMessage, { color }]} numberOfLines={3}>
             {alert.message || 'No description'}
           </Text>
 
-          {/* Footer */}
           <View style={s.alertFooter}>
             <Ionicons name="time-outline" size={11} color={COLORS.textMuted} />
-            <Text style={s.alertTime}>
+            <Text style={s.alertTime} numberOfLines={1}>
               {alert.created_at ? new Date(alert.created_at).toLocaleString() : 'Just now'}
             </Text>
-            {/* Task 7: DELETE */}
             <TouchableOpacity style={s.deleteBtn} onPress={() => handleDelete(alert.id)}>
               <Ionicons name="trash-outline" size={13} color={COLORS.critical} />
               <Text style={s.deleteBtnText}>Delete</Text>
@@ -247,6 +253,31 @@ export default function AlertsScreen({ navigation }) {
       </View>
     );
   };
+
+  // Filter pill row rendered as a ListHeaderComponent so it scrolls with the list
+  // This eliminates the FlatList-inside-ScrollView layout bug
+  const filterCounts = { Critical: criticalCount, High: highCount, Medium: mediumCount, Low: lowCount };
+
+  const ListHeader = () => (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={s.filterRow}
+      style={s.filterScrollView}
+    >
+      {FILTERS.map(f => (
+        <TouchableOpacity
+          key={f}
+          style={[s.filterChip, activeFilter === f && s.filterChipActive]}
+          onPress={() => setActiveFilter(f)}
+        >
+          <Text style={[s.filterText, activeFilter === f && s.filterTextActive]}>
+            {f}{filterCounts[f] > 0 ? ` (${filterCounts[f]})` : ''}
+          </Text>
+        </TouchableOpacity>
+      ))}
+    </ScrollView>
+  );
 
   return (
     <SafeAreaView style={s.safe} edges={['top']}>
@@ -259,7 +290,6 @@ export default function AlertsScreen({ navigation }) {
               <Text style={[s.headerBadgeText, { color: COLORS.critical }]}>{criticalCount} Critical</Text>
             </View>
           )}
-          {/* Task 7: CREATE button */}
           <TouchableOpacity style={s.createBtn} onPress={() => setShowModal(true)}>
             <Ionicons name="add" size={18} color="#fff" />
             <Text style={s.createBtnText}>New</Text>
@@ -267,7 +297,6 @@ export default function AlertsScreen({ navigation }) {
         </View>
       </View>
 
-      {/* Task 8: Empty state */}
       {alerts.length === 0 ? (
         <View style={s.stateContainer}>
           <Ionicons name="checkmark-circle" size={56} color={COLORS.normal} />
@@ -275,36 +304,24 @@ export default function AlertsScreen({ navigation }) {
           <Text style={s.stateText}>All drainage sensors are within normal thresholds.</Text>
         </View>
       ) : (
-        <>
-          {/* Filters */}
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.filterRow} style={s.filterScrollView}>
-            {FILTERS.map(f => (
-              <TouchableOpacity
-                key={f}
-                style={[s.filterChip, activeFilter === f && s.filterChipActive]}
-                onPress={() => setActiveFilter(f)}
-              >
-                <Text style={[s.filterText, activeFilter === f && s.filterTextActive]}>
-                  {f}
-                  {f === 'Critical' && criticalCount > 0 ? ` (${criticalCount})` : ''}
-                  {f === 'High'     && highCount     > 0 ? ` (${highCount})`     : ''}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-
-          <FlatList
-            data={filtered}
-            keyExtractor={item => String(item.id)}
-            renderItem={renderAlert}
-            contentContainerStyle={s.list}
-            showsVerticalScrollIndicator={false}
-            ListEmptyComponent={<Text style={s.emptyFilter}>No alerts for this filter.</Text>}
-          />
-        </>
+        <FlatList
+          data={filtered}
+          keyExtractor={item => String(item.id)}
+          renderItem={renderAlert}
+          contentContainerStyle={s.list}
+          showsVerticalScrollIndicator={false}
+          // Filter chips scroll with the list — fixes the nested scroll layout bug
+          ListHeaderComponent={<ListHeader />}
+          ListEmptyComponent={
+            <View style={s.emptyFilterWrap}>
+              <Ionicons name="filter-outline" size={32} color={COLORS.textMuted} />
+              <Text style={s.emptyFilter}>No {activeFilter.toLowerCase()} alerts.</Text>
+            </View>
+          }
+        />
       )}
 
-      {/* Task 7: CREATE Modal */}
+      {/* CREATE Modal */}
       <Modal visible={showModal} animationType="slide" transparent>
         <View style={s.modalOverlay}>
           <View style={s.modalCard}>
@@ -315,18 +332,16 @@ export default function AlertsScreen({ navigation }) {
               </TouchableOpacity>
             </View>
 
-            {/* Location ID — required integer */}
             <Text style={s.fieldLabel}>LOCATION ID (required)</Text>
             <TextInput
               style={s.modalInput}
-              placeholder="e.g. 1  (find via GET /api/locations/)"
+              placeholder="e.g. 1"
               placeholderTextColor={COLORS.textMuted}
               value={newLocationId}
               onChangeText={setNewLocationId}
               keyboardType="numeric"
             />
 
-            {/* Message */}
             <Text style={s.fieldLabel}>MESSAGE (required)</Text>
             <TextInput
               style={[s.modalInput, { height: 70, textAlignVertical: 'top', paddingTop: 10 }]}
@@ -337,7 +352,6 @@ export default function AlertsScreen({ navigation }) {
               multiline
             />
 
-            {/* Alert Type */}
             <Text style={s.fieldLabel}>ALERT TYPE</Text>
             <View style={s.chipRow}>
               {ALERT_TYPES.map(t => (
@@ -353,7 +367,6 @@ export default function AlertsScreen({ navigation }) {
               ))}
             </View>
 
-            {/* Severity */}
             <Text style={s.fieldLabel}>SEVERITY</Text>
             <View style={s.chipRow}>
               {SEVERITIES.map(sv => (
@@ -365,14 +378,13 @@ export default function AlertsScreen({ navigation }) {
                   }]}
                   onPress={() => setNewSeverity(sv.value)}
                 >
-                  <Text style={[s.chipText, newSeverity === sv.value && { color: severityColor(sv.value) }]}>
+                  <Text style={[s.chipText, newSeverity === sv.value && { color: severityColor(sv.value), fontWeight: '700' }]}>
                     {sv.label}
                   </Text>
                 </TouchableOpacity>
               ))}
             </View>
 
-            {/* Submit */}
             <TouchableOpacity
               style={[s.submitBtn, creating && { opacity: 0.7 }]}
               onPress={handleCreate}
@@ -382,7 +394,7 @@ export default function AlertsScreen({ navigation }) {
                 ? <ActivityIndicator size="small" color="#fff" />
                 : <Ionicons name="send-outline" size={16} color="#fff" />}
               <Text style={s.submitBtnText}>
-                {creating ? 'Sending...' : 'POST to /api/alerts/'}
+                {creating ? 'Sending...' : 'Submit Alert'}
               </Text>
             </TouchableOpacity>
           </View>
@@ -406,22 +418,27 @@ const s = StyleSheet.create({
   filterChip:   { paddingHorizontal: 14, paddingVertical: 6, marginRight: 8, borderRadius: RADIUS.full, backgroundColor: COLORS.bgCard, borderWidth: 1, borderColor: COLORS.border},
   filterChipActive:  { backgroundColor: COLORS.primaryLight, borderColor: COLORS.primary },
   filterText:        { fontSize: 12, fontWeight: '600', color: COLORS.textSecondary },
-  filterTextActive:  { color: COLORS.primary },
-  list:         { paddingHorizontal: 16, paddingBottom: 24 },
+  filterTextActive:  { color: COLORS.primary, fontWeight: '700' },
+
+  list: { paddingHorizontal: 16, paddingBottom: 24 },
+
+  // Alert card — fixed height behaviour with numberOfLines preventing overflow
   alertCard:    { borderRadius: RADIUS.lg, borderWidth: 1, flexDirection: 'row', overflow: 'hidden', marginBottom: 10 },
   accentBar:    { width: 4 },
   alertBody:    { flex: 1, padding: 14 },
   alertTopRow:  { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
-  alertIconWrap:{ width: 28, height: 28, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  alertIconWrap:{ width: 28, height: 28, borderRadius: 8, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  alertMeta:    { flex: 1, marginLeft: 10, marginRight: 8 },
   alertSensor:  { fontSize: 12, fontWeight: '700', color: COLORS.textPrimary, marginBottom: 1 },
   alertLoc:     { fontSize: 10, color: COLORS.textMuted },
-  levelBadge:   { borderRadius: RADIUS.full, borderWidth: 1, paddingHorizontal: 8, paddingVertical: 2 },
+  levelBadge:   { borderRadius: RADIUS.full, borderWidth: 1, paddingHorizontal: 8, paddingVertical: 2, flexShrink: 0 },
   levelBadgeText: { fontSize: 9, fontWeight: '800' },
   alertMessage: { fontSize: 12, fontWeight: '600', marginBottom: 10, lineHeight: 17 },
   alertFooter:  { flexDirection: 'row', alignItems: 'center' },
   alertTime:    { fontSize: 10, color: COLORS.textMuted, flex: 1, marginLeft: 4 },
-  deleteBtn:    { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 3, borderRadius: RADIUS.full, backgroundColor: COLORS.criticalBg, borderWidth: 1, borderColor: COLORS.criticalBdr },
+  deleteBtn:    { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 3, borderRadius: RADIUS.full, backgroundColor: COLORS.criticalBg, borderWidth: 1, borderColor: COLORS.criticalBdr, flexShrink: 0 },
   deleteBtnText:{ fontSize: 10, fontWeight: '700', color: COLORS.critical, marginLeft: 3 },
+
   stateContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 40 },
   stateTitle:   { fontSize: 18, fontWeight: '700', color: COLORS.textPrimary, marginTop: 12, marginBottom: 8 },
   stateText:    { fontSize: 13, color: COLORS.textMuted, textAlign: 'center', lineHeight: 20 },

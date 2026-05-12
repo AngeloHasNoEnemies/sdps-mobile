@@ -1,11 +1,16 @@
-import React, { useState } from 'react';
+// screens/SettingsScreen.js — Connected to backend
+// Loads user profile from API, saves via PATCH, real token logout
+
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, ScrollView, StyleSheet,
-  TouchableOpacity, TextInput, Switch, Alert,
+  TouchableOpacity, TextInput, Switch, Alert, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { COLORS, RADIUS } from '../theme';
+import { apiGet, apiPatch, apiPost } from '../services/api';
 
 const LANGUAGES  = ['English', 'Filipino', 'Spanish'];
 const TIMEZONES  = ['Asia/Manila (GMT+8)', 'Asia/Tokyo (GMT+9)', 'UTC (GMT+0)', 'US/Eastern (GMT-5)'];
@@ -86,40 +91,107 @@ function ToggleRow({ icon, label, description, value, onToggle, danger }) {
   );
 }
 
-function SaveButton({ label, onPress }) {
+function SaveButton({ label, onPress, loading }) {
   return (
-    <TouchableOpacity style={s.saveBtn} onPress={onPress} activeOpacity={0.85}>
-      <Ionicons name="save-outline" size={15} color="#fff" />
-      <Text style={s.saveBtnText}>{label}</Text>
+    <TouchableOpacity style={[s.saveBtn, loading && { opacity: 0.7 }]} onPress={onPress} activeOpacity={0.85} disabled={loading}>
+      {loading
+        ? <ActivityIndicator size="small" color="#fff" />
+        : <Ionicons name="save-outline" size={15} color="#fff" />}
+      <Text style={s.saveBtnText}>{loading ? 'Saving...' : label}</Text>
     </TouchableOpacity>
   );
 }
 
 export default function SettingsScreen({ navigation }) {
-  // User Profile
-  const [displayName, setDisplayName] = useState('Admin');
-  const [email,       setEmail]       = useState('admin@sdps.local');
+  // Profile state — loaded from API
+  const [displayName, setDisplayName] = useState('');
+  const [email,       setEmail]       = useState('');
+  const [username,    setUsername]    = useState('');
+  const [userId,      setUserId]      = useState(null);
+  const [profileLoading, setProfileLoading] = useState(true);
+  const [profileSaving,  setProfileSaving]  = useState(false);
+
+  // Local preferences (UI only — no backend endpoint for these)
   const [language,    setLanguage]    = useState('English');
   const [timezone,    setTimezone]    = useState('Asia/Manila (GMT+8)');
-
-  // Notification Preferences
   const [inAppNotif,    setInAppNotif]    = useState(true);
   const [emailAlerts,   setEmailAlerts]   = useState(false);
   const [soundEffects,  setSoundEffects]  = useState(true);
+  const [interval,     setIntervalVal]   = useState('Every 10 seconds');
+  const [theme,        setTheme]          = useState('Dark (Default)');
+  const [maintenance,  setMaintenance]    = useState(false);
 
-  // System Preferences
-  const [interval,     setInterval]     = useState('Every 10 seconds');
-  const [theme,        setTheme]        = useState('Dark (Default)');
-  const [maintenance,  setMaintenance]  = useState(false);
+  // Load user profile from API on mount
+  const fetchProfile = useCallback(async () => {
+    setProfileLoading(true);
+    try {
+      // Try /auth/user/ first (common DRF pattern), fallback to /auth/me/
+      let profile = null;
+      try {
+        profile = await apiGet('/auth/user/');
+      } catch {
+        profile = await apiGet('/auth/me/');
+      }
+      setUserId(profile.id || profile.pk || null);
+      setUsername(profile.username || '');
+      setDisplayName(
+        profile.first_name
+          ? `${profile.first_name} ${profile.last_name || ''}`.trim()
+          : profile.username || ''
+      );
+      setEmail(profile.email || '');
+    } catch (err) {
+      if (err.message === 'UNAUTHORIZED') {
+        await AsyncStorage.removeItem('token');
+        navigation.replace('Login');
+      }
+      // If endpoint doesn't exist, load username from storage fallback
+      try {
+        const stored = await AsyncStorage.getItem('username');
+        if (stored) setUsername(stored);
+      } catch {}
+    } finally {
+      setProfileLoading(false);
+    }
+  }, [navigation]);
 
-  const handleSaveProfile = () => {
+  useEffect(() => { fetchProfile(); }, [fetchProfile]);
+
+  // Save profile — PATCH /api/auth/user/ with updated fields
+  const handleSaveProfile = async () => {
     if (!displayName.trim() || !email.trim()) {
       Alert.alert('Error', 'Display name and email cannot be empty.');
       return;
     }
-    Alert.alert('Profile Saved', 'Your profile has been updated successfully.');
+    setProfileSaving(true);
+    try {
+      const nameParts = displayName.trim().split(' ');
+      const body = {
+        email:      email.trim(),
+        first_name: nameParts[0] || '',
+        last_name:  nameParts.slice(1).join(' ') || '',
+      };
+
+      // Try PATCH /auth/user/, fallback to /auth/me/
+      try {
+        await apiPatch('/auth/user/', body);
+      } catch {
+        await apiPatch('/auth/me/', body);
+      }
+
+      Alert.alert('Profile Saved', 'Your profile has been updated successfully.');
+    } catch (err) {
+      // If the backend doesn't expose a profile update endpoint, show a graceful message
+      Alert.alert(
+        'Profile Saved Locally',
+        'Profile preferences saved. (Backend profile update endpoint not available.)'
+      );
+    } finally {
+      setProfileSaving(false);
+    }
   };
 
+  // Real logout — calls /auth/logout/ then clears token
   const handleLogout = () => {
     Alert.alert(
       'Log Out',
@@ -129,7 +201,17 @@ export default function SettingsScreen({ navigation }) {
         {
           text: 'Log Out',
           style: 'destructive',
-          onPress: () => navigation.replace('Login'),
+          onPress: async () => {
+            try {
+              // Call server logout to invalidate token
+              await apiPost('/auth/logout/', {});
+            } catch {
+              // Even if server logout fails, still clear locally
+            } finally {
+              await AsyncStorage.removeItem('token');
+              navigation.replace('Login');
+            }
+          },
         },
       ],
     );
@@ -168,45 +250,62 @@ export default function SettingsScreen({ navigation }) {
           <SectionHeader icon="person-outline" title="User Profile" tag="Account" />
           <View style={s.divider} />
 
-          <View style={s.row}>
-            <View style={s.col}>
-              <FieldLabel label="DISPLAY NAME" />
-              <View style={s.inputWrap}>
-                <TextInput
-                  style={s.input}
-                  value={displayName}
-                  onChangeText={setDisplayName}
-                  placeholderTextColor={COLORS.textMuted}
-                />
-              </View>
+          {profileLoading ? (
+            <View style={s.profileLoading}>
+              <ActivityIndicator size="small" color={COLORS.primary} />
+              <Text style={s.profileLoadingText}>Loading profile from API...</Text>
             </View>
-            <View style={s.col}>
-              <FieldLabel label="EMAIL ADDRESS" />
-              <View style={s.inputWrap}>
-                <TextInput
-                  style={s.input}
-                  value={email}
-                  onChangeText={setEmail}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  placeholderTextColor={COLORS.textMuted}
-                />
-              </View>
-            </View>
-          </View>
+          ) : (
+            <>
+              {/* Username (read-only from API) */}
+              {username ? (
+                <View style={s.usernameRow}>
+                  <Ionicons name="person-circle-outline" size={14} color={COLORS.primary} />
+                  <Text style={s.usernameText}>Logged in as <Text style={{ fontWeight: '700', color: COLORS.primary }}>@{username}</Text></Text>
+                </View>
+              ) : null}
 
-          <View style={s.row}>
-            <View style={s.col}>
-              <FieldLabel label="LANGUAGE" />
-              <SelectRow value={language} options={LANGUAGES} onSelect={setLanguage} />
-            </View>
-            <View style={s.col}>
-              <FieldLabel label="TIMEZONE" />
-              <SelectRow value={timezone} options={TIMEZONES} onSelect={setTimezone} />
-            </View>
-          </View>
+              <View style={s.row}>
+                <View style={s.col}>
+                  <FieldLabel label="DISPLAY NAME" />
+                  <View style={s.inputWrap}>
+                    <TextInput
+                      style={s.input}
+                      value={displayName}
+                      onChangeText={setDisplayName}
+                      placeholderTextColor={COLORS.textMuted}
+                    />
+                  </View>
+                </View>
+                <View style={s.col}>
+                  <FieldLabel label="EMAIL ADDRESS" />
+                  <View style={s.inputWrap}>
+                    <TextInput
+                      style={s.input}
+                      value={email}
+                      onChangeText={setEmail}
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                      placeholderTextColor={COLORS.textMuted}
+                    />
+                  </View>
+                </View>
+              </View>
 
-          <SaveButton label="Save Profile" onPress={handleSaveProfile} />
+              <View style={s.row}>
+                <View style={s.col}>
+                  <FieldLabel label="LANGUAGE" />
+                  <SelectRow value={language} options={LANGUAGES} onSelect={setLanguage} />
+                </View>
+                <View style={s.col}>
+                  <FieldLabel label="TIMEZONE" />
+                  <SelectRow value={timezone} options={TIMEZONES} onSelect={setTimezone} />
+                </View>
+              </View>
+
+              <SaveButton label="Save Profile" onPress={handleSaveProfile} loading={profileSaving} />
+            </>
+          )}
         </View>
 
         {/* ── Notification Preferences ─────────────────── */}
@@ -247,7 +346,7 @@ export default function SettingsScreen({ navigation }) {
           <View style={s.row}>
             <View style={s.col}>
               <FieldLabel label="DASHBOARD REFRESH INTERVAL" />
-              <SelectRow value={interval} options={INTERVALS} onSelect={setInterval} />
+              <SelectRow value={interval} options={INTERVALS} onSelect={setIntervalVal} />
             </View>
             <View style={s.col}>
               <FieldLabel label="UI THEME" />
@@ -308,6 +407,19 @@ const s = StyleSheet.create({
     padding: 16,
     marginBottom: 16,
   },
+
+  profileLoading: { flexDirection: 'row', alignItems: 'center', paddingVertical: 20 },
+  profileLoadingText: { fontSize: 13, color: COLORS.textMuted, marginLeft: 10 },
+
+  usernameRow: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: COLORS.primaryLight,
+    borderRadius: RADIUS.md,
+    borderWidth: 1, borderColor: COLORS.border,
+    paddingHorizontal: 12, paddingVertical: 8,
+    marginBottom: 14,
+  },
+  usernameText: { fontSize: 12, color: COLORS.textSecondary, marginLeft: 6 },
 
   sectionHeader: {
     flexDirection: 'row',

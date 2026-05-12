@@ -5,7 +5,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // ⚠️ Replace with your computer's local IP when testing on device/emulator
 // Run `ipconfig` (Windows) or `ifconfig` (Mac/Linux) to find your IP
-const BASE_URL = 'http://192.168.1.54:8000/api';
+const BASE_URL = 'http://192.168.100.165:8082/api';
 
 const getToken = async () => await AsyncStorage.getItem('token');
 
@@ -37,7 +37,6 @@ export const apiGet = async (endpoint) => {
     },
   });
 
-  // Task 8: Handle 401 Unauthorized
   if (res.status === 401) {
     await AsyncStorage.removeItem('token');
     throw new Error('UNAUTHORIZED');
@@ -74,6 +73,27 @@ export const apiPut = async (endpoint, body) => {
   const token = await getToken();
   const res = await fetch(`${BASE_URL}${endpoint}`, {
     method: 'PUT',
+    headers: {
+      Authorization: `Token ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (res.status === 401) {
+    await AsyncStorage.removeItem('token');
+    throw new Error('UNAUTHORIZED');
+  }
+
+  if (!res.ok) throw new Error(`Error ${res.status}`);
+  return res.json();
+};
+
+// ─── PATCH (partial update) ────────────────────────────────────────────────
+export const apiPatch = async (endpoint, body) => {
+  const token = await getToken();
+  const res = await fetch(`${BASE_URL}${endpoint}`, {
+    method: 'PATCH',
     headers: {
       Authorization: `Token ${token}`,
       'Content-Type': 'application/json',

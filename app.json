@@ -4,14 +4,30 @@
     "slug": "sdps-mobile",
     "version": "1.0.0",
     "orientation": "portrait",
-    "newArchEnabled": true,
-    "splash": { "resizeMode": "contain", "backgroundColor": "#0077b6" },
-    "assetBundlePatterns": ["**/*"],
-    "ios": { "supportsTablet": false, "bundleIdentifier": "com.sdps.mobile" },
+    "updates": {
+      "enabled": false
+    },
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#0077b6"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.sdps.mobile"
+    },
     "android": {
-      "adaptiveIcon": { "backgroundColor": "#0077b6" },
+      "adaptiveIcon": {
+        "backgroundColor": "#0077b6"
+      },
       "package": "com.sdps.mobile",
       "permissions": []
-    }
+    },
+    "plugins": [
+      "expo-asset",
+      "expo-font"
+    ]
   }
 }

@@ -28,7 +28,6 @@ const tile = StyleSheet.create({
   label: { fontSize: 9, fontWeight: '700', color: COLORS.textMuted, letterSpacing: 0.6, textAlign: 'center', marginTop: 2 },
 });
 
-// Task 8: Reusable loading component
 function LoadingState() {
   return (
     <View style={s.stateContainer}>
@@ -39,7 +38,6 @@ function LoadingState() {
   );
 }
 
-// Task 8: Reusable error component
 function ErrorState({ message, onRetry, onLogout }) {
   const isUnauthorized = message === 'UNAUTHORIZED';
   return (
@@ -74,7 +72,6 @@ function ErrorState({ message, onRetry, onLogout }) {
   );
 }
 
-// Task 8: Reusable empty state component
 function EmptyState() {
   return (
     <View style={s.stateContainer}>
@@ -88,18 +85,39 @@ function EmptyState() {
 }
 
 export default function DashboardScreen({ navigation }) {
-  // Task 8: All three state variables required by the error-handling pattern
   const [locations,  setLocations]  = useState([]);
+  const [alerts,     setAlerts]     = useState([]);
   const [loading,    setLoading]    = useState(true);
   const [error,      setError]      = useState(null);
   const [refreshing, setRefreshing] = useState(false);
-  
-  // Task 5 & 7: Fetch locations from API (READ)
+
   const fetchData = useCallback(async () => {
     setError(null);
     try {
-      const data = await apiGet('/locations/');
-      setLocations(Array.isArray(data) ? data : (data.results || []));
+      const token = await AsyncStorage.getItem('token');
+      if (!token) throw new Error('UNAUTHORIZED');
+
+      const [data, alertsData] = await Promise.all([
+        apiGet('/locations/'),
+        apiGet('/alerts/'),
+      ]);
+
+      let parsed = [];
+      if (Array.isArray(data)) {
+        parsed = data;
+      } else if (data && Array.isArray(data.results)) {
+        parsed = data.results;
+      } else if (data && Array.isArray(data.locations)) {
+        parsed = data.locations;
+      } else if (data && typeof data === 'object') {
+        const firstArray = Object.values(data).find(v => Array.isArray(v));
+        parsed = firstArray || [];
+      }
+
+      const alertsList = Array.isArray(alertsData) ? alertsData : (alertsData.results || []);
+
+      setLocations(parsed);
+      setAlerts(alertsList);
     } catch (err) {
       setError(err.message || 'Failed to load');
     } finally {
@@ -117,7 +135,6 @@ export default function DashboardScreen({ navigation }) {
     navigation.replace('Login');
   };
 
-  // Task 8: Loading state
   if (loading) return (
     <SafeAreaView style={s.safe} edges={['top']}>
       <View style={s.header}>
@@ -130,7 +147,6 @@ export default function DashboardScreen({ navigation }) {
     </SafeAreaView>
   );
 
-  // Task 8: Error + Unauthorized handling
   if (error) return (
     <SafeAreaView style={s.safe} edges={['top']}>
       <View style={s.header}>
@@ -143,11 +159,11 @@ export default function DashboardScreen({ navigation }) {
     </SafeAreaView>
   );
 
-  // Derived stats from API data
-  const criticalCount = locations.filter(l => l.status === 'critical').length;
-  const warningCount  = locations.filter(l => l.status === 'warning').length;
+  // Stats derived from live backend data
+  const criticalCount = alerts.filter(a => a.severity === 'critical').length;
+  const warningCount  = alerts.filter(a => a.severity === 'high' || a.severity === 'medium').length;
   const activeCount   = locations.filter(l => l.status === 'active').length;
-  const totalAlerts   = locations.reduce((sum, l) => sum + (l.active_alerts_count || 0), 0);
+  const totalAlerts   = alerts.length;
   const systemLevel   = criticalCount > 0 ? 'critical' : warningCount > 0 ? 'warning' : 'normal';
 
   const bannerColors = {
@@ -159,7 +175,6 @@ export default function DashboardScreen({ navigation }) {
 
   return (
     <SafeAreaView style={s.safe} edges={['top']}>
-      {/* Header */}
       <View style={s.header}>
         <View>
           <Text style={s.headerSub}>Smart Drainage Protection System</Text>
@@ -186,12 +201,10 @@ export default function DashboardScreen({ navigation }) {
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />}
       >
-        {/* Task 8: Empty state */}
         {locations.length === 0 ? (
           <EmptyState />
         ) : (
           <>
-            {/* Status Banner */}
             <View style={[s.banner, { backgroundColor: bc.bg, borderColor: bc.border }]}>
               <Ionicons
                 name={systemLevel === 'critical' ? 'alert-circle' : systemLevel === 'warning' ? 'warning' : 'checkmark-circle'}
@@ -203,19 +216,17 @@ export default function DashboardScreen({ navigation }) {
                    : systemLevel === 'warning' ? 'WARNING — Some Locations Need Attention'
                    : 'All Systems Normal'}
                 </Text>
-                <Text style={s.bannerSub}>{locations.length} locations loaded from API</Text>
+                <Text style={s.bannerSub}>{locations.length} locations · {totalAlerts} active alerts</Text>
               </View>
             </View>
 
-            {/* Stat Tiles — Task 5: derived from real API data */}
             <View style={s.tileRow}>
-              <StatTile icon="alert-circle-outline" label="CRITICAL"  value={criticalCount}       color={COLORS.critical} />
-              <StatTile icon="warning-outline"       label="WARNING"   value={warningCount}        color={COLORS.warning}  />
-              <StatTile icon="radio-outline"         label="ACTIVE"    value={activeCount}         color={COLORS.normal}   />
-              <StatTile icon="notifications-outline" label="ALERTS"    value={totalAlerts}         color={COLORS.primary}  />
+              <StatTile icon="alert-circle-outline" label="CRITICAL"  value={criticalCount} color={COLORS.critical} />
+              <StatTile icon="warning-outline"       label="WARNING"   value={warningCount}  color={COLORS.warning}  />
+              <StatTile icon="radio-outline"         label="ACTIVE"    value={activeCount}   color={COLORS.normal}   />
+              <StatTile icon="notifications-outline" label="ALERTS"    value={totalAlerts}   color={COLORS.primary}  />
             </View>
 
-            {/* Location Cards — Task 5: real API data displayed in mobile UI */}
             <Text style={s.sectionTitle}>DRAINAGE LOCATIONS</Text>
             {locations.map(loc => (
               <View key={loc.id} style={s.locationCard}>
@@ -253,7 +264,9 @@ export default function DashboardScreen({ navigation }) {
                     )}
                     <View style={s.metaItem}>
                       <Ionicons name="notifications-outline" size={12} color={COLORS.warning} />
-                      <Text style={s.metaText}>Alerts: {loc.active_alerts_count || 0}</Text>
+                      <Text style={s.metaText}>
+                        Alerts: {alerts.filter(a => a.location === loc.id).length}
+                      </Text>
                     </View>
                   </View>
                 </View>
@@ -262,7 +275,6 @@ export default function DashboardScreen({ navigation }) {
           </>
         )}
 
-        {/* Quick Links */}
         <TouchableOpacity style={s.quickBtn} onPress={() => navigation.navigate('Alerts')}>
           <Ionicons name="notifications" size={20} color={COLORS.warning} />
           <Text style={s.quickBtnText}>View Alerts</Text>
@@ -311,7 +323,6 @@ const s = StyleSheet.create({
   metaText:    { fontSize: 11, color: COLORS.textSecondary, marginLeft: 4 },
   quickBtn:    { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.bgCard, borderRadius: RADIUS.md, borderWidth: 1, borderColor: COLORS.border, padding: 14 },
   quickBtnText:{ flex: 1, fontSize: 14, fontWeight: '600', color: COLORS.textPrimary, marginLeft: 12 },
-  // States
   stateContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 40, marginTop: 40 },
   stateIcon:      { width: 72, height: 72, borderRadius: 36, alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
   stateTitle:     { fontSize: 18, fontWeight: '700', color: COLORS.textPrimary, marginBottom: 8 },

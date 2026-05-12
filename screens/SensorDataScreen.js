@@ -10,27 +10,30 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { COLORS, RADIUS } from '../theme';
-import { apiGet, apiPut, apiDelete, apiPatch } from '../services/api';
+import { apiGet, apiPut } from '../services/api';
 
 const FILTERS = ['All', 'Active', 'Critical', 'Maintenance', 'Offline'];
 
 export default function SensorDataScreen({ navigation, route }) {
   const [locations,    setLocations]    = useState([]);
   const [sensorData,   setSensorData]   = useState([]);
+  const [alerts,       setAlerts]       = useState([]);
   const [loading,      setLoading]      = useState(true);
   const [error,        setError]        = useState(null);
   const [activeFilter, setActiveFilter] = useState('All');
 
-  // Task 7: READ — fetch locations + latest sensor readings
+  // Task 7: READ — fetch locations + latest sensor readings + alerts
   const fetchData = useCallback(async () => {
     setError(null);
     try {
-      const [locs, sensors] = await Promise.all([
+      const [locs, sensors, alertsData] = await Promise.all([
         apiGet('/locations/'),
         apiGet('/sensor-data/'),
+        apiGet('/alerts/'),
       ]);
       setLocations(Array.isArray(locs) ? locs : (locs.results || []));
       setSensorData(Array.isArray(sensors) ? sensors : (sensors.results || []));
+      setAlerts(Array.isArray(alertsData) ? alertsData : (alertsData.results || []));
     } catch (err) {
       setError(err.message || 'Failed to load');
     } finally {
@@ -40,7 +43,6 @@ export default function SensorDataScreen({ navigation, route }) {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  // Task 7: UPDATE location status
   const handleUpdateStatus = (loc) => {
     const nextStatus = loc.status === 'active' ? 'maintenance' : 'active';
     Alert.alert(
@@ -75,7 +77,6 @@ export default function SensorDataScreen({ navigation, route }) {
     navigation.replace('Login');
   };
 
-  // Task 8: Loading state
   if (loading) return (
     <SafeAreaView style={s.safe} edges={['top']}>
       <View style={s.header}>
@@ -88,7 +89,6 @@ export default function SensorDataScreen({ navigation, route }) {
     </SafeAreaView>
   );
 
-  // Task 8: Error & Unauthorized
   if (error) return (
     <SafeAreaView style={s.safe} edges={['top']}>
       <View style={s.header}>
@@ -126,7 +126,7 @@ export default function SensorDataScreen({ navigation, route }) {
   });
 
   const onlineCount   = locations.filter(l => l.status !== 'offline').length;
-  const critCount     = locations.filter(l => l.status === 'critical').length;
+  const critCount     = alerts.filter(a => a.severity === 'critical').length;
   const totalReadings = sensorData.length;
 
   return (
@@ -159,7 +159,9 @@ export default function SensorDataScreen({ navigation, route }) {
         </View>
         <View style={[s.summaryItem, { borderLeftColor: COLORS.textMuted }]}>
           <Ionicons name="analytics-outline" size={14} color={COLORS.textMuted} />
-          <Text style={[s.summaryVal, { color: COLORS.textSecondary }]}>{sensorData.length > 0 ? Math.round(sensorData.reduce((a,b) => a + (b.water_level || 0), 0) / sensorData.length) : 0}%</Text>
+          <Text style={[s.summaryVal, { color: COLORS.textSecondary }]}>
+            {sensorData.length > 0 ? Math.round(sensorData.reduce((a, b) => a + (b.water_level || 0), 0) / sensorData.length) : 0}%
+          </Text>
           <Text style={s.summaryLbl}>AVG WATER</Text>
         </View>
       </View>
@@ -177,7 +179,6 @@ export default function SensorDataScreen({ navigation, route }) {
         ))}
       </ScrollView>
 
-      {/* Task 8: Empty state */}
       {locations.length === 0 ? (
         <View style={s.stateContainer}>
           <Ionicons name="hardware-chip-outline" size={48} color={COLORS.textMuted} />
@@ -197,7 +198,6 @@ export default function SensorDataScreen({ navigation, route }) {
               : loc.status === 'offline' ? COLORS.textMuted
               : COLORS.normal;
 
-            // Find latest sensor reading for this location
             const reading = sensorData.find(s => s.location === loc.id || s.location_id === loc.id);
 
             return (
